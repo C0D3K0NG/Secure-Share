@@ -1,6 +1,6 @@
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from supabase import create_client, Client
@@ -10,11 +10,16 @@ from werkzeug.utils import secure_filename
 # 1. Setup & Config
 load_dotenv()
 app = Flask(__name__)
-CORS(app) # Allow frontend to talk to this backend
+CORS(app)  # Allow frontend to talk to this backend
 
 # Connect to Supabase Cloud
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
+
+# Safety check if env vars are missing
+if not url or not key:
+    raise ValueError("Supabase URL or Key is missing in .env file")
+
 supabase: Client = create_client(url, key)
 
 BUCKET_NAME = "secure-files"
@@ -22,8 +27,15 @@ BUCKET_NAME = "secure-files"
 # 2. Helper: Check if link is valid
 def is_link_active(share_data):
     # Check Expiry
+    # Fix: Make sure database time implies UTC
     expiry = datetime.fromisoformat(share_data['expires_at'])
-    if datetime.utcnow() > expiry:
+    
+    # If the stored time doesn't have timezone info, force it to UTC
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+
+    # Compare with current UTC time
+    if datetime.now(timezone.utc) > expiry:
         return False, "Link Expired"
     
     # Check View Limit
@@ -40,13 +52,16 @@ def upload_file():
             return jsonify({"error": "No file part"}), 400
             
         file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
         max_views = int(request.form.get('max_views', 1))
         expiry_mins = int(request.form.get('expiry_mins', 60))
         
         # A. Secure the filename & Create unique ID
         filename = secure_filename(file.filename)
         unique_id = str(uuid.uuid4())
-        file_path = f"{unique_id}/{filename}" # Store as folder/file structure
+        file_path = f"{unique_id}/{filename}"  # Store as folder/file structure
 
         # B. Upload file to Supabase Storage (The Vault)
         file_content = file.read()
@@ -56,8 +71,8 @@ def upload_file():
             file_options={"content-type": file.content_type}
         )
 
-        # C. Calculate Expiry Time
-        expires_at = datetime.utcnow() + timedelta(minutes=expiry_mins)
+        # C. Calculate Expiry Time (FIXED: Using UTC Aware Time)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=expiry_mins)
 
         # D. Save Metadata to Database (The Ledger)
         data = {
@@ -72,11 +87,12 @@ def upload_file():
 
         return jsonify({
             "message": "File secured successfully!",
-            "share_link": f"{unique_id}", # We send just ID, frontend builds full URL
+            "share_link": f"{unique_id}",
             "expires_at": expires_at.isoformat()
         })
 
     except Exception as e:
+        print(f"Upload Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 # 4. API Route: ACCESS FILE (Zero Trust Logic)
@@ -97,25 +113,29 @@ def access_file(share_id):
             return jsonify({"error": reason}), 403
 
         # C. Increment View Count (Audit Trail)
-        # We update the DB before giving access
         new_count = share_data['current_views'] + 1
         supabase.table("shares").update({"current_views": new_count}).eq("id", share_id).execute()
 
         # D. Generate One-Time Signed URL (The Key)
-        # This URL is valid for only 60 seconds!
+        # Valid for 60 seconds
         signed_url_res = supabase.storage.from_(BUCKET_NAME).create_signed_url(
             share_data['file_path'], 
             60 
         )
         
-        # Send the secure URL to the user
+        # NOTE: Check if your supabase version returns dict or string.
+        # Usually it returns a dict like {'signedURL': '...'} or just a string in some versions.
+        # Assuming dict based on your code:
+        final_url = signed_url_res['signedURL'] if isinstance(signed_url_res, dict) else signed_url_res
+
         return jsonify({
-            "file_url": signed_url_res['signedURL'],
+            "file_url": final_url,
             "filename": share_data['original_name'],
             "views_left": share_data['max_views'] - new_count
         })
 
     except Exception as e:
+        print(f"Access Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
