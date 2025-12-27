@@ -57,11 +57,23 @@ def upload_file():
 
         max_views = int(request.form.get('max_views', 1))
         expiry_mins = int(request.form.get('expiry_mins', 60))
+        custom_name = request.form.get('custom_name')
         
         # A. Secure the filename & Create unique ID
         filename = secure_filename(file.filename)
         unique_id = str(uuid.uuid4())
         file_path = f"{unique_id}/{filename}"  # Store as folder/file structure
+
+        # Determine Display Name
+        if custom_name and custom_name.strip():
+            # Append original extension if user didn't provide one
+            ext = os.path.splitext(filename)[1]
+            if not custom_name.endswith(ext):
+                display_name = custom_name + ext
+            else:
+                display_name = custom_name
+        else:
+            display_name = filename
 
         # B. Upload file to Supabase Storage (The Vault)
         file_content = file.read()
@@ -78,7 +90,7 @@ def upload_file():
         data = {
             "id": unique_id,
             "file_path": file_path,
-            "original_name": filename,
+            "original_name": display_name,
             "expires_at": expires_at.isoformat(),
             "max_views": max_views,
             "current_views": 0
@@ -116,6 +128,7 @@ def access_file(share_id):
         # Log attempt (Honeypot) - Log BEFORE returning error
         log_entry = {
             "file_id": share_id,
+            "filename": share_data.get('original_name', 'Unknown'),
             "ip_address": ip,  # In prod, mask this e.g. 192.168.x.x
             "user_agent": ua,
             "status": "Granted" if is_valid else f"Denied: {reason}",
@@ -156,11 +169,108 @@ def access_file(share_id):
 @app.route('/logs', methods=['GET'])
 def get_logs():
     try:
-        # Fetch last 50 logs
-        response = supabase.table("access_logs").select("*").order("accessed_at", desc=True).limit(50).execute()
+        time_range = request.args.get('range', 'all')
+        sort_by = request.args.get('sort', 'newest')
+        
+        query = supabase.table("access_logs").select("*")
+        
+        # Apply Logic for Sort
+        if sort_by == 'oldest':
+            query = query.order("accessed_at", desc=False)
+        elif sort_by == 'status_granted':
+             # Alphabetical sort might play nice, or we can just rely on client side. 
+             # Supabase simple order:
+             query = query.order("status", desc=True) # Granted > Denied usually? G comes after D? No. D before G.
+             # Actually, simpler to stick to date sorting for the main query limit, then sort in python? 
+             # No, pagination breaks then. 
+             # Let's just supporting Date sorting for now as it's the most critical database-level sort.
+             # For Status, let's just order by status then date.
+             query = query.order("status", desc=True).order("accessed_at", desc=True)
+        elif sort_by == 'status_denied':
+             query = query.order("status", desc=False).order("accessed_at", desc=True)
+        else: # newest
+            query = query.order("accessed_at", desc=True)
+
+        query = query.limit(100)
+        
+        if time_range != 'all':
+            now = datetime.now(timezone.utc)
+            start_date = None
+            
+            if time_range == '1h':
+                start_date = now - timedelta(hours=1)
+            elif time_range == '24h':
+                start_date = now - timedelta(days=1)
+            elif time_range == '7d':
+                start_date = now - timedelta(days=7)
+            elif time_range == '30d':
+                start_date = now - timedelta(days=30)
+            elif time_range == '3m':
+                start_date = now - timedelta(days=90)
+            elif time_range == '6m':
+                start_date = now - timedelta(days=180)
+            elif time_range == '1y':
+                start_date = now - timedelta(days=365)
+            
+            if start_date:
+                query = query.gte("accessed_at", start_date.isoformat())
+
+        response = query.execute()
         return jsonify(response.data)
     except Exception as e:
         print(f"Logs Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# 6. API Route: DASHBOARD STATS
+@app.route('/stats', methods=['GET'])
+def get_stats():
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        
+        # 1. Total Uploads
+        res_total = supabase.table("shares").select("*", count='exact', head=True).execute()
+        total_uploads = res_total.count if res_total.count is not None else 0
+
+        # 2. Active Links (Expires later than now)
+        res_active = supabase.table("shares").select("*", count='exact', head=True).gt("expires_at", now_iso).execute()
+        active_links = res_active.count if res_active.count is not None else 0
+
+        # 3. Threats Blocked (Status contains "Denied")
+        threats_blocked = 0
+        try:
+             # Note: 'ilike' might not be available in all py versions of client, using 'like' with wildcard
+             res_threats = supabase.table("access_logs").select("*", count='exact', head=True).like("status", "%Denied%").execute()
+             threats_blocked = res_threats.count if res_threats.count is not None else 0
+        except Exception:
+             pass # Table might not exist, ignore
+
+        # 4. Graph Data (Activity in last 24 hours)
+        hourly_counts = [0] * 24
+        try:
+            one_day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+            res_activity = supabase.table("access_logs").select("accessed_at").gte("accessed_at", one_day_ago).execute()
+        
+            now = datetime.now(timezone.utc)
+            for log in res_activity.data:
+                dt = datetime.fromisoformat(log['accessed_at'])
+                if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
+                
+                diff = now - dt
+                hours_ago = int(diff.total_seconds() / 3600)
+                if 0 <= hours_ago < 24:
+                    hourly_counts[23 - hours_ago] += 1
+        except Exception:
+             pass # Table might not exist
+
+        return jsonify({
+            "total_uploads": total_uploads,
+            "active_links": active_links,
+            "threats_blocked": threats_blocked,
+            "activity_graph": hourly_counts
+        })
+
+    except Exception as e:
+        print(f"Stats Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':

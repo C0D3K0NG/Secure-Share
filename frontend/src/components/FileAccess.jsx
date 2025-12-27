@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CryptoJS from 'crypto-js';
-import { Unlock, FileText, Download, Eye, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
+import { Unlock, FileText, Download, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 const FileAccess = () => {
   const [shareId, setShareId] = useState('');
@@ -9,6 +10,7 @@ const FileAccess = () => {
   const [fileData, setFileData] = useState(null); // { filename, downloadUrl, viewsLeft }
   const [decryptedUrl, setDecryptedUrl] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -102,12 +104,14 @@ const FileAccess = () => {
         const url = URL.createObjectURL(blob);
         setDecryptedUrl(url);
         setStatus('success');
+        toast.success("File unlocked successfully!");
       }
 
     } catch (err) {
       console.error(err);
       setStatus('error');
       setErrorMsg(err.message);
+      toast.error(err.message || 'Decryption failed');
     }
   };
 
@@ -169,13 +173,22 @@ const FileAccess = () => {
 
             <div>
               <label className="text-sm text-gray-400 block mb-2">Decryption Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter secret key..."
-                className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter secret key..."
+                  className="w-full bg-black/50 border border-white/10 rounded-lg p-3 pr-10 text-white focus:border-primary focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-gray-500 hover:text-white"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
             <button
               onClick={downloadAndDecrypt}

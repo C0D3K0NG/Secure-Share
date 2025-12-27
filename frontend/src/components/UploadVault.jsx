@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import CryptoJS from 'crypto-js';
 import QRCode from 'react-qr-code';
-import { CloudUpload, Lock, Key, Copy, CheckCircle, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
+import { CloudUpload, Lock, Key, Copy, CheckCircle, AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 const UploadVault = () => {
   const [file, setFile] = useState(null);
@@ -12,10 +13,14 @@ const UploadVault = () => {
   const [status, setStatus] = useState('idle'); // idle, encrypting, uploading, success, error
   const [shareLink, setShareLink] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [customName, setCustomName] = useState('');
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
       setFile(e.target.files[0]);
+      setCustomName(e.target.files[0].name.split('.')[0]); // Default to filename without extension
       setStatus('idle');
     }
   };
@@ -43,26 +48,42 @@ const UploadVault = () => {
 
       // 2. Upload
       setStatus('uploading');
+
+      // Simulate progress since fetch doesn't support it easily without XHR
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        if (progress > 90) clearInterval(interval);
+        setUploadProgress(progress);
+      }, 200);
+
       const formData = new FormData();
       formData.append('file', fileToUpload, file.name + (enableEncryption ? '.enc' : ''));
       formData.append('max_views', maxViews);
       formData.append('expiry_mins', expiry);
+      formData.append('custom_name', customName);
 
       // Assuming backend is on localhost:5000 from current knowledge
       const res = await fetch('http://127.0.0.1:5000/upload', {
         method: 'POST',
         body: formData,
       });
+
+      clearInterval(interval);
+      setUploadProgress(100);
+
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || 'Upload failed');
 
       setShareLink(data.share_link);
       setStatus('success');
+      toast.success('File encrypted and uploaded successfully!');
     } catch (err) {
       console.error(err);
       setErrorMsg(err.message);
       setStatus('error');
+      toast.error(err.message || 'Upload failed');
     }
   };
 
@@ -83,7 +104,10 @@ const UploadVault = () => {
           <div className="bg-black/50 p-4 rounded-lg flex items-center justify-between w-full max-w-md border border-white/10">
             <code className="text-primary truncate mr-4">{fullShareLink}</code>
             <button
-              onClick={() => navigator.clipboard.writeText(fullShareLink)}
+              onClick={() => {
+                navigator.clipboard.writeText(fullShareLink);
+                toast.success('Link copied to clipboard');
+              }}
               className="p-2 hover:bg-white/10 rounded-md transition-colors"
             >
               <Copy size={20} className="text-gray-400 hover:text-white" />
@@ -131,6 +155,19 @@ const UploadVault = () => {
 
           {/* Right: Security Settings */}
           <div className="w-full md:w-80 bg-card rounded-xl border border-white/10 p-6 flex flex-col gap-6">
+
+            {/* Display Name */}
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Display Name (Optional)</label>
+              <input
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="e.g. Secret Mission Plans"
+                className="w-full bg-black/50 border border-white/10 rounded-lg py-2 px-3 text-sm focus:border-primary focus:outline-none placeholder-gray-700"
+              />
+            </div>
+
             <h3 className="font-bold flex items-center text-lg">
               <Lock size={20} className="mr-2 text-primary" />
               Security Config
@@ -155,12 +192,19 @@ const UploadVault = () => {
                   <div className="relative">
                     <Key size={14} className="absolute left-3 top-3 text-gray-500" />
                     <input
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Required to unlock"
-                      className="w-full bg-black/50 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none"
+                      className="w-full bg-black/50 border border-white/10 rounded-lg py-2 pl-9 pr-10 text-sm focus:border-primary focus:outline-none"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-gray-500 hover:text-white"
+                    >
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
                   </div>
                 </div>
               )}
@@ -200,9 +244,18 @@ const UploadVault = () => {
               <button
                 onClick={uploadFile}
                 disabled={!file || (enableEncryption && !password) || status === 'encrypting' || status === 'uploading'}
-                className="w-full bg-primary text-black font-bold py-3 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="w-full bg-primary text-black font-bold py-3 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all relative overflow-hidden"
               >
-                {status === 'encrypting' ? 'Encrypting...' : status === 'uploading' ? 'Uploading...' : 'Secure & Upload'}
+                {status === 'uploading' && (
+                  <div
+                    className="absolute left-0 top-0 bottom-0 bg-black/10 transition-all duration-200"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                )}
+                <span className="relative flex items-center justify-center">
+                  {status === 'encrypting' && <Loader2 className="animate-spin mr-2" size={18} />}
+                  {status === 'encrypting' ? 'Encrypting...' : status === 'uploading' ? `Uploading ${uploadProgress}%` : 'Secure & Upload'}
+                </span>
               </button>
             </div>
           </div>
