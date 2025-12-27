@@ -98,6 +98,9 @@ def upload_file():
 # 4. API Route: ACCESS FILE (Zero Trust Logic)
 @app.route('/access/<share_id>', methods=['GET'])
 def access_file(share_id):
+    ip = request.remote_addr
+    ua = request.user_agent.string
+    
     try:
         # A. Fetch Metadata
         response = supabase.table("shares").select("*").eq("id", share_id).execute()
@@ -109,7 +112,23 @@ def access_file(share_id):
 
         # B. Validate Policy (Expiry & Counts)
         is_valid, reason = is_link_active(share_data)
+        
+        # Log attempt (Honeypot) - Log BEFORE returning error
+        log_entry = {
+            "file_id": share_id,
+            "ip_address": ip,  # In prod, mask this e.g. 192.168.x.x
+            "user_agent": ua,
+            "status": "Granted" if is_valid else f"Denied: {reason}",
+            "accessed_at": datetime.now(timezone.utc).isoformat()
+        }
+        # Fire and forget log? Supabase insert is quick.
+        try:
+            supabase.table("access_logs").insert(log_entry).execute()
+        except Exception as log_err:
+             print(f"Logging Failed: {log_err}")
+
         if not is_valid:
+            print(f"Access Denied: {reason}")
             return jsonify({"error": reason}), 403
 
         # C. Increment View Count (Audit Trail)
@@ -117,15 +136,10 @@ def access_file(share_id):
         supabase.table("shares").update({"current_views": new_count}).eq("id", share_id).execute()
 
         # D. Generate One-Time Signed URL (The Key)
-        # Valid for 60 seconds
         signed_url_res = supabase.storage.from_(BUCKET_NAME).create_signed_url(
             share_data['file_path'], 
             60 
         )
-        
-        # NOTE: Check if your supabase version returns dict or string.
-        # Usually it returns a dict like {'signedURL': '...'} or just a string in some versions.
-        # Assuming dict based on your code:
         final_url = signed_url_res['signedURL'] if isinstance(signed_url_res, dict) else signed_url_res
 
         return jsonify({
@@ -136,6 +150,17 @@ def access_file(share_id):
 
     except Exception as e:
         print(f"Access Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# 5. API Route: MONITORING LOGS
+@app.route('/logs', methods=['GET'])
+def get_logs():
+    try:
+        # Fetch last 50 logs
+        response = supabase.table("access_logs").select("*").order("accessed_at", desc=True).limit(50).execute()
+        return jsonify(response.data)
+    except Exception as e:
+        print(f"Logs Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
