@@ -261,7 +261,11 @@ const UploadVault = () => {
                 )}
                 <span className="relative flex items-center justify-center">
                   {status === 'encrypting' && <Loader2 className="animate-spin mr-2" size={18} />}
-                  {status === 'encrypting' ? 'Encrypting...' : status === 'uploading' ? `Uploading ${uploadProgress}%` : 'Secure & Upload'}
+                  {status === 'encrypting' ? 'Encrypting...' :
+                    status === 'uploading' ? `Uploading ${uploadProgress}%` :
+                      !file ? 'Select a File to Start' :
+                        (enableEncryption && !password) ? 'Enter Password to Secure' :
+                          'Secure & Upload'}
                 </span>
               </button>
             </div>
