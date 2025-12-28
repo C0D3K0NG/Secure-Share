@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, RefreshCw, Trash2, Key, Shield, Clock } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Settings = () => {
   const [apiKey, setApiKey] = useState('Sk-7x9d2...');
@@ -29,11 +30,11 @@ const Settings = () => {
   const saveDefaults = () => {
     localStorage.setItem('defaultExpiry', defaultExpiry);
     localStorage.setItem('defaultViews', defaultViews);
-    alert("Configurations saved locally!");
+    toast.success("Configurations saved locally!");
   };
 
   const clearLocalData = () => {
-    if (confirm("Are you sure? This will clear all local keys and history.")) {
+    if (window.confirm("Are you sure? This will clear all local keys and history.")) {
       localStorage.clear();
       window.location.reload();
     }
