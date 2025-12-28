@@ -49,13 +49,8 @@ def is_link_active(share_data):
         
     return True, "Valid"
 
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({
-        "status": "online",
-        "message": "SecureShare Backend is Running. Please use the Frontend to interact.",
-        "endpoints": ["/upload", "/access/<id>", "/logs", "/stats"]
-    })
+# Root route removed to allow Vercel to serve Frontend at /
+# Backend should only respond to specific API routes.
 
 # 3. API Route: UPLOAD FILE
 @app.route('/upload', methods=['POST'])
