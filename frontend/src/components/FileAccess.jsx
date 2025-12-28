@@ -36,7 +36,7 @@ const FileAccess = () => {
       // Note: This endpoint increments view count as per current backend logic.
       // Ideally we should have a "peek" endpoint or only call this when ready to download.
       // But for MVP, we call it to get the URL.
-      const res = await fetch(`http://127.0.0.1:5000/access/${shareId}`);
+      const res = await fetch(`/api/access/${shareId}`);
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || 'Access Denied');
