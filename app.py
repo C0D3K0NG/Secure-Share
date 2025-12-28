@@ -60,6 +60,20 @@ def home():
         "note": "If you are on Vercel, this means the Frontend build might have failed or routing is misconfigured."
     })
 
+@app.route('/debug-files', methods=['GET'])
+def debug_files():
+    import os
+    try:
+        root_files = os.listdir('.')
+        dist_files = os.listdir('./dist') if os.path.exists('./dist') else "dist folder not found"
+        return jsonify({
+            "cwd": os.getcwd(),
+            "root_files": root_files,
+            "dist_files": dist_files
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 # 3. API Route: UPLOAD FILE
 @app.route('/upload', methods=['POST'])
 def upload_file():
