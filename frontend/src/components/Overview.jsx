@@ -13,6 +13,8 @@ const Card = ({ children, className, delay = 0 }) => (
     </motion.div>
 );
 
+import { supabase } from '../supabaseClient';
+
 const Overview = ({ setActiveTab }) => {
     const [stats, setStats] = useState({
         total_uploads: 0,
@@ -25,7 +27,14 @@ const Overview = ({ setActiveTab }) => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const res = await fetch('http://127.0.0.1:5000/stats');
+                const { data: { session } } = await supabase.auth.getSession();
+                const userId = session?.user?.id;
+
+                const url = userId
+                    ? `/api/stats?user_id=${userId}`
+                    : '/api/stats';
+
+                const res = await fetch(url);
                 if (res.ok) {
                     const data = await res.json();
                     setStats(data);
@@ -36,6 +45,7 @@ const Overview = ({ setActiveTab }) => {
                 setLoading(false);
             }
         };
+
         fetchStats();
 
         // Poll every 30s
@@ -50,7 +60,7 @@ const Overview = ({ setActiveTab }) => {
             <Card delay={0.1}>
                 <h3 className="text-gray-400 text-sm font-mono uppercase flex items-center mb-2">
                     <UploadCloud size={16} className="mr-2 text-primary" />
-                    Total Uploads
+                    Network Uploads
                 </h3>
                 <p className="text-5xl font-bold text-white tracking-tighter">
                     {loading ? <Loader2 className="animate-spin" /> : stats.total_uploads}
@@ -62,7 +72,7 @@ const Overview = ({ setActiveTab }) => {
             <Card delay={0.2}>
                 <h3 className="text-gray-400 text-sm font-mono uppercase flex items-center mb-2">
                     <Zap size={16} className="mr-2 text-yellow-400" />
-                    Active Links
+                    Global Active Links
                 </h3>
                 <p className="text-5xl font-bold text-white tracking-tighter">
                     {loading ? <Loader2 className="animate-spin" /> : stats.active_links}
@@ -99,9 +109,7 @@ const Overview = ({ setActiveTab }) => {
 
             {/* Main Activity Graph (Large Box) */}
             <Card className="md:col-span-3 md:row-span-2 relative overflow-hidden group" delay={0.5}>
-                <div className="absolute top-0 right-0 p-6 opacity-20 group-hover:opacity-40 transition-opacity">
-                    <Activity size={120} />
-                </div>
+
                 <h3 className="text-xl font-bold text-white mb-4">24h Access Activity</h3>
 
                 {/* Real Graph Visual */}

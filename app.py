@@ -85,6 +85,8 @@ def upload_file():
 
         # C. Calculate Expiry Time (FIXED: Using UTC Aware Time)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=expiry_mins)
+        
+        user_id = request.form.get('user_id')
 
         # D. Save Metadata to Database (The Ledger)
         data = {
@@ -95,6 +97,10 @@ def upload_file():
             "max_views": max_views,
             "current_views": 0
         }
+        
+        if user_id:
+            data["user_id"] = user_id
+            
         supabase.table("shares").insert(data).execute()
 
         return jsonify({
@@ -171,20 +177,25 @@ def get_logs():
     try:
         time_range = request.args.get('range', 'all')
         sort_by = request.args.get('sort', 'newest')
+        user_id = request.args.get('user_id')
         
+        # Base Query
         query = supabase.table("access_logs").select("*")
+
+        # User Filtering (Personal Ownership)
+        # Note: This relies on access_logs.file_id -> shares.id foreign key relationship
+        # If user_id is provided, we filter logs where the associated share belongs to that user.
+        if user_id and user_id != 'undefined':
+             # Querying referenced table: shares.user_id
+             # Syntax assumes Foreign Key exists: access_logs.file_id -> shares.id
+             # We use the !inner join hint to filter rows based on the joined table
+             query = supabase.table("access_logs").select("*, shares!inner(user_id)")
+             query = query.eq("shares.user_id", user_id)
         
         # Apply Logic for Sort
         if sort_by == 'oldest':
             query = query.order("accessed_at", desc=False)
         elif sort_by == 'status_granted':
-             # Alphabetical sort might play nice, or we can just rely on client side. 
-             # Supabase simple order:
-             query = query.order("status", desc=True) # Granted > Denied usually? G comes after D? No. D before G.
-             # Actually, simpler to stick to date sorting for the main query limit, then sort in python? 
-             # No, pagination breaks then. 
-             # Let's just supporting Date sorting for now as it's the most critical database-level sort.
-             # For Status, let's just order by status then date.
              query = query.order("status", desc=True).order("accessed_at", desc=True)
         elif sort_by == 'status_denied':
              query = query.order("status", desc=False).order("accessed_at", desc=True)
@@ -225,30 +236,51 @@ def get_logs():
 @app.route('/stats', methods=['GET'])
 def get_stats():
     try:
+        user_id = request.args.get('user_id')
         now_iso = datetime.now(timezone.utc).isoformat()
         
+        # Helper params for user filtering
+        filter_user_shares = lambda q: q.eq("user_id", user_id) if (user_id and user_id != 'undefined') else q
+        # For logs, we need to join again
+        
         # 1. Total Uploads
-        res_total = supabase.table("shares").select("*", count='exact', head=True).execute()
+        q_total = supabase.table("shares").select("*", count='exact', head=True)
+        q_total = filter_user_shares(q_total)
+        res_total = q_total.execute()
         total_uploads = res_total.count if res_total.count is not None else 0
 
         # 2. Active Links (Expires later than now)
-        res_active = supabase.table("shares").select("*", count='exact', head=True).gt("expires_at", now_iso).execute()
+        q_active = supabase.table("shares").select("*", count='exact', head=True).gt("expires_at", now_iso)
+        q_active = filter_user_shares(q_active)
+        res_active = q_active.execute()
         active_links = res_active.count if res_active.count is not None else 0
 
         # 3. Threats Blocked (Status contains "Denied")
         threats_blocked = 0
         try:
-             # Note: 'ilike' might not be available in all py versions of client, using 'like' with wildcard
-             res_threats = supabase.table("access_logs").select("*", count='exact', head=True).like("status", "%Denied%").execute()
+             q_threats = supabase.table("access_logs").select("*", count='exact', head=True).like("status", "%Denied%")
+             if user_id and user_id != 'undefined':
+                  # Filter logs by user_id via join
+                  q_threats = supabase.table("access_logs").select("*, shares!inner(user_id)", count='exact', head=True).like("status", "%Denied%").eq("shares.user_id", user_id)
+                  
+             res_threats = q_threats.execute()
              threats_blocked = res_threats.count if res_threats.count is not None else 0
         except Exception:
-             pass # Table might not exist, ignore
+             pass 
 
         # 4. Graph Data (Activity in last 24 hours)
         hourly_counts = [0] * 24
         try:
             one_day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-            res_activity = supabase.table("access_logs").select("accessed_at").gte("accessed_at", one_day_ago).execute()
+            
+            # Base Query
+            q_activity = supabase.table("access_logs").select("accessed_at")
+            
+            if user_id and user_id != 'undefined':
+                 q_activity = supabase.table("access_logs").select("accessed_at, shares!inner(user_id)").eq("shares.user_id", user_id)
+            
+            q_activity = q_activity.gte("accessed_at", one_day_ago)
+            res_activity = q_activity.execute()
         
             now = datetime.now(timezone.utc)
             for log in res_activity.data:
@@ -260,7 +292,7 @@ def get_stats():
                 if 0 <= hours_ago < 24:
                     hourly_counts[23 - hours_ago] += 1
         except Exception:
-             pass # Table might not exist
+             pass 
 
         return jsonify({
             "total_uploads": total_uploads,

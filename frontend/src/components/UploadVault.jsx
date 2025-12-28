@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import CryptoJS from 'crypto-js';
 import QRCode from 'react-qr-code';
 import { toast } from 'sonner';
+import { supabase } from '../supabaseClient';
 import { CloudUpload, Lock, Key, Copy, CheckCircle, AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 const UploadVault = () => {
@@ -57,14 +58,20 @@ const UploadVault = () => {
         setUploadProgress(progress);
       }, 200);
 
+
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
       const formData = new FormData();
       formData.append('file', fileToUpload, file.name + (enableEncryption ? '.enc' : ''));
       formData.append('max_views', maxViews);
       formData.append('expiry_mins', expiry);
       formData.append('custom_name', customName);
+      if (userId) formData.append('user_id', userId);
 
       // Assuming backend is on localhost:5000 from current knowledge
-      const res = await fetch('http://127.0.0.1:5000/upload', {
+      const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });

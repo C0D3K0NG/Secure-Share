@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { Lock, Mail, Github, Chrome, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import logo from '../assets/logo.svg';
+
 const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -57,8 +59,8 @@ const Auth = () => {
         className="w-full max-w-md bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl relative z-10"
       >
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl border border-primary/20 flex items-center justify-center mx-auto mb-4">
-            <Lock className="text-primary w-8 h-8" />
+          <div className="flex justify-center mb-4">
+            <img src={logo} alt="SecureShare Logo" className="w-20 h-20 filter drop-shadow-[0_0_15px_rgba(0,255,157,0.3)]" />
           </div>
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500">
             SecureShare

@@ -20,12 +20,17 @@ const SORT_OPTIONS = [
   { label: 'Status: Denied', value: 'status_denied' },
 ];
 
+import { supabase } from '../supabaseClient';
+
+// ... (existing imports)
+
 const Monitoring = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [refreshing, setRefreshing] = useState(false);
+  // ... (existing state)
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
   const filterRef = useRef(null);
@@ -37,24 +42,20 @@ const Monitoring = () => {
     return () => clearInterval(interval);
   }, [timeFilter, sortBy]);
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (filterRef.current && !filterRef.current.contains(event.target)) {
-        setIsFilterOpen(false);
-      }
-      if (sortRef.current && !sortRef.current.contains(event.target)) {
-        setIsSortOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // ... (existing click outside effect)
 
   const fetchLogs = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5000/logs?range=${timeFilter}&sort=${sortBy}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
+      let url = `/api/logs?range=${timeFilter}&sort=${sortBy}`;
+      if (userId) {
+        url += `&user_id=${userId}`;
+      }
+
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setLogs(data);
