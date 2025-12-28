@@ -1,6 +1,6 @@
-Flask==2.0.1
+Flask>=2.3.2
 flask-cors
 supabase
 python-dotenv
-werkzeug
+werkzeug>=2.3.0
 gunicorn
