@@ -4,7 +4,7 @@
 
 SecureShare allows you to share files with absolute control. Unlike traditional tools that assume trust, SecureShare verifies every access, encrypts data on the client side, and logs every interaction in real-time.
 
-![SecureShare Preview](https://placehold.co/1200x600/000000/00FF9D?text=SecureShare+v2.0)
+![SecureShare Logo](logo/logo.svg)
 
 ## 🚀 Key Features
 
