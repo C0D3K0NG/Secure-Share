@@ -7,11 +7,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "var(--bg)",
-        card: "var(--card)",
-        text: "var(--text)",
-        primary: "var(--primary)",
-        error: "var(--error)",
+        background: "rgb(var(--bg) / <alpha-value>)",
+        card: "rgb(var(--card) / <alpha-value>)",
+        text: "rgb(var(--text) / <alpha-value>)",
+        primary: "rgb(var(--primary) / <alpha-value>)",
+        error: "rgb(var(--error) / <alpha-value>)",
       },
     },
   },
