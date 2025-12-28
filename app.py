@@ -213,14 +213,18 @@ def get_logs():
         query = supabase.table("access_logs").select("*")
 
         # User Filtering (Personal Ownership)
-        # Note: This relies on access_logs.file_id -> shares.id foreign key relationship
-        # If user_id is provided, we filter logs where the associated share belongs to that user.
+        # User Filtering (Personal Ownership)
+        # Refactored to be robust against missing Foreign Keys
         if user_id and user_id != 'undefined':
-             # Querying referenced table: shares.user_id
-             # Syntax assumes Foreign Key exists: access_logs.file_id -> shares.id
-             # We use the !inner join hint to filter rows based on the joined table
-             query = supabase.table("access_logs").select("*, shares!inner(user_id)")
-             query = query.eq("shares.user_id", user_id)
+             # Step 1: Get all share IDs owned by this user
+             user_shares_res = supabase.table("shares").select("id").eq("user_id", user_id).execute()
+             user_share_ids = [item['id'] for item in user_shares_res.data]
+             
+             if not user_share_ids:
+                 return jsonify([]) # User has no files, so no logs
+                 
+             # Step 2: Query logs for these files
+             query = query.in_("file_id", user_share_ids)
         
         # Apply Logic for Sort
         if sort_by == 'oldest':
