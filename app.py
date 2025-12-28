@@ -16,11 +16,15 @@ CORS(app)  # Allow frontend to talk to this backend
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
-# Safety check if env vars are missing
-if not url or not key:
-    raise ValueError("Supabase URL or Key is missing in .env file")
+supabase: Client = None
 
-supabase: Client = create_client(url, key)
+try:
+    if not url or not key:
+        print("WARNING: Supabase URL or Key is missing. Database features will fail.")
+    else:
+        supabase = create_client(url, key)
+except Exception as e:
+    print(f"Supabase Init Error: {e}")
 
 BUCKET_NAME = "secure-files"
 
