@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { motion } from 'framer-motion';
 import { Lock, Mail, Github, Chrome, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import AnimatedBackground from './AnimatedBackground';
 
 import logo from '../assets/logo.svg';
 
@@ -48,10 +49,11 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Ambience */}
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
-      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/20 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+      {/* Interactive Cyber Background */}
+      <AnimatedBackground />
+
+      {/* Dark Overlay for Text Readability */}
+      <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none"></div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}

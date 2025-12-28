@@ -1,5 +1,10 @@
-from app import app
 import os
+import sys
+
+# Add parent directory to path so we can import app.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app import app
 
 # Helper to run on Vercel
 # Vercel needs the app object to be exposed directly. 

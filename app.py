@@ -14,7 +14,7 @@ CORS(app)  # Allow frontend to talk to this backend
 
 # Connect to Supabase Cloud
 url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
+key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 # Safety check if env vars are missing
 if not url or not key:
@@ -27,6 +27,7 @@ BUCKET_NAME = "secure-files"
 # 2. Helper: Check if link is valid
 def is_link_active(share_data):
     # Check Expiry
+    # ... (existing code) ...
     # Fix: Make sure database time implies UTC
     expiry = datetime.fromisoformat(share_data['expires_at'])
     
@@ -43,6 +44,14 @@ def is_link_active(share_data):
         return False, "Max views reached"
         
     return True, "Valid"
+
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "status": "online",
+        "message": "SecureShare Backend is Running. Please use the Frontend to interact.",
+        "endpoints": ["/upload", "/access/<id>", "/logs", "/stats"]
+    })
 
 # 3. API Route: UPLOAD FILE
 @app.route('/upload', methods=['POST'])

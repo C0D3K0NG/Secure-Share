@@ -3,15 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0a0a0a;
-  --card: #161616;
-  --text: #e0e0e0;
-  --primary: #00ff9d; /* Hacker Green */
-  --error: #ff4d4d;
+  --bg: 10 10 10;
+  /* #0a0a0a */
+  --card: 22 22 22;
+  /* #161616 */
+  --text: 224 224 224;
+  /* #e0e0e0 */
+  --primary: 158 255 157;
+  /* #00ff9d (Approx HSL or RGB channels for Tailwind) */
+  /* Actually Tailwind expects distinct RGB or HSL. Let's use simple Hex for variables 
+     but for Tailwind config to work with /opacity, we usually need the <alpha-value> syntax 
+     in tailwind.config.js. 
+     
+     Simpler fix: Just define them as standard Hex for now and FIX the component to use 
+     style={{ backgroundColor: 'rgba(...) '}} or standard CSS.
+     
+     Wait, I'll switch to standard HSL/RGB variables format which is robust.
+  */
+  --bg-rgb: 10, 10, 10;
+  --primary-rgb: 0, 255, 157;
 }
 
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
