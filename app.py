@@ -49,8 +49,16 @@ def is_link_active(share_data):
         
     return True, "Valid"
 
-# Root route removed to allow Vercel to serve Frontend at /
-# Backend should only respond to specific API routes.
+# Root route for API Health Check & Guidance
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "status": "online",
+        "service": "SecureShare Backend API",
+        "message": "You have hit the Backend API directly. To use the App, please visit the Frontend URL.",
+        "documentation": "/api/stats, /api/logs",
+        "note": "If you are on Vercel, this means the Frontend build might have failed or routing is misconfigured."
+    })
 
 # 3. API Route: UPLOAD FILE
 @app.route('/upload', methods=['POST'])
